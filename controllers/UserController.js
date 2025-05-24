@@ -66,6 +66,7 @@ export function userLogin(req, res) {
           process.env.SECRETE
         );
         res.json({
+          success: true, 
           message: "User Logged in",
           token: token,
           user: {
@@ -78,6 +79,7 @@ export function userLogin(req, res) {
         });
       } else {
         res.json({
+          success: false,
           message: "User not Logged in ,Invalid Password ",
         });
       }
