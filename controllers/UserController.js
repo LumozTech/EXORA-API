@@ -66,7 +66,6 @@ export function userLogin(req, res) {
           process.env.SECRETE
         );
         res.json({
-          success: true, 
           message: "User Logged in",
           token: token,
           user: {
@@ -79,7 +78,6 @@ export function userLogin(req, res) {
         });
       } else {
         res.json({
-          success: false,
           message: "User not Logged in ,Invalid Password ",
         });
       }
@@ -120,3 +118,26 @@ export function isCustomer(req) {
 }
 // johndoe@example.com  securepassword123 - admin
 //kavidu100@example.com  securepassword123 - customer
+export async function updateUserStatus(req, res) {
+  // Only admin can block/unblock users
+  if (!isAdmin(req)) {
+    return res
+      .status(403)
+      .json({ message: "Only admin can update user status" });
+  }
+  try {
+    const { id } = req.params;
+    const { isBlocked } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { isBlocked },
+      { new: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ message: "User status updated", user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
