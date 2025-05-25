@@ -146,5 +146,78 @@ export async function updateUserStatus(req, res) {
   }
 }
 
+// Middleware to get user from token (add this if not already present)
+function getUserFromRequest(req) {
+  // Assuming you use JWT and set req.user in auth middleware
+  return req.user;
+}
+
+// GET /api/users/profile
+export function getUserProfile(req, res) {
+  const user = getUserFromRequest(req);
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  User.findOne({ email: user.email })
+    .then((dbUser) => {
+      if (!dbUser) return res.status(404).json({ message: "User not found" });
+      res.json({
+        firstName: dbUser.firstName,
+        lastName: dbUser.lastName,
+        email: dbUser.email,
+        profilePic: dbUser.profilePic,
+        type: dbUser.type,
+        isBlocked: dbUser.isBlocked,
+      });
+    })
+    .catch(() => res.status(500).json({ message: "Error fetching profile" }));
+}
+
+// PUT /api/users/profile
+export function updateUserProfile(req, res) {
+  const user = getUserFromRequest(req);
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const { firstName, lastName, profilePic } = req.body;
+  User.findOneAndUpdate(
+    { email: user.email },
+    { firstName, lastName, profilePic },
+    { new: true }
+  )
+    .then((updatedUser) => {
+      if (!updatedUser)
+        return res.status(404).json({ message: "User not found" });
+      res.json({ message: "Profile updated", user: updatedUser });
+    })
+    .catch(() => res.status(500).json({ message: "Error updating profile" }));
+}
+
+// PUT /api/users/password
+export function updateUserPassword(req, res) {
+  console.log("Password route hit");
+  const user = getUserFromRequest(req);
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const { oldPassword, newPassword } = req.body;
+  User.findOne({ email: user.email })
+    .then((dbUser) => {
+      if (!dbUser) return res.status(404).json({ message: "User not found" });
+      console.log("Comparing:", oldPassword, dbUser.password); // Add this line
+      const isPasswordCorrect = bcrypt.compareSync(
+        oldPassword,
+        dbUser.password
+      );
+      if (!isPasswordCorrect) {
+        return res.status(400).json({ message: "Old password is incorrect" });
+      }
+      dbUser.password = bcrypt.hashSync(newPassword, 10);
+      return dbUser.save();
+    })
+    .then(() => res.json({ message: "Password updated" }))
+    .catch(() => res.status(500).json({ message: "Error updating password" }));
+}
+
 // johndoe@example.com  securepassword123 - admin
 //kavidu100@example.com  securepassword123 - customer
