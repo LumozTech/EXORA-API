@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 
 dotenv.config();
 
@@ -66,7 +67,7 @@ export function userLogin(req, res) {
           process.env.SECRETE
         );
         res.json({
-          success: true, 
+          success: true,
           message: "User Logged in",
           token: token,
           user: {
@@ -118,5 +119,32 @@ export function isCustomer(req) {
   }
   return true;
 }
+export async function updateUserStatus(req, res) {
+  // Only admin can update user status
+  if (!isAdmin(req)) {
+    return res
+      .status(403)
+      .json({ message: "Only admin can update user status" });
+  }
+  const { id } = req.params;
+  const { isBlocked } = req.body;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid user ID" });
+  }
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { isBlocked },
+      { new: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ message: "User status updated", user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
+
 // johndoe@example.com  securepassword123 - admin
 //kavidu100@example.com  securepassword123 - customer
