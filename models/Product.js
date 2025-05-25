@@ -36,6 +36,29 @@ const productSchema = mongoose.Schema({
     type: Number,
     required: true,
   },
+  soldCount: {
+    type: Number,
+    default: 0,
+  },
+  category: {
+    type: String,
+    required: true,
+    enum: ["kids", "men", "women"],
+  },
+  isBestSelling: {
+    type: Boolean,
+    default: false,
+  },
+  isTopRated: {
+    type: Boolean,
+    default: false,
+  },
+  status: {
+    type: String,
+    required: true,
+    enum: ["active", "inactive"],
+    default: "active",
+  },
 });
 
 const Product = mongoose.model("products", productSchema);
