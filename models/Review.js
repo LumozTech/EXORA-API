@@ -5,6 +5,15 @@ const reviewSchema = mongoose.Schema({
     type: String,
     required: true,
   },
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'products',
+    required: true
+  },
+  productName: {
+    type: String,
+    required: true
+  },
   review: {
     type: String,
     required: true,
@@ -20,8 +29,9 @@ const reviewSchema = mongoose.Schema({
   },
   hidden: {
     type: Boolean,
-    default: false, // Default is visible
+    default: true, // Default is hidden (pending approval)
   },
 });
+
 const Review = mongoose.model("reviews", reviewSchema);
 export default Review;
