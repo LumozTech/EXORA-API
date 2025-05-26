@@ -12,6 +12,10 @@ const orderSchema = mongoose.Schema({
   },
   orderedItems: [
     {
+      productId: {
+        type: String,
+        required: true,
+      },
       name: {
         type: String,
         required: true,
@@ -28,6 +32,11 @@ const orderSchema = mongoose.Schema({
         type: Number,
         required: true,
       },
+      size: {
+        type: String,
+        required: true,
+        enum: ['S', 'M', 'L', 'XL']
+      }
     },
   ],
   date: {
@@ -35,12 +44,24 @@ const orderSchema = mongoose.Schema({
     required: true,
     default: Date.now,
   },
+  paymentMethod: {
+    type: String,
+    required: true,
+    enum: ['bank', 'cod', 'stripe'],
+    default: 'cod'
+  },
   paymentId: {
     type: String,
   },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
   status: {
-    type: "String",
+    type: String,
     required: true,
+    enum: ['Preparing', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
     default: "Preparing",
   },
   notes: {
@@ -58,6 +79,10 @@ const orderSchema = mongoose.Schema({
     type: String,
     required: true,
   },
+  totalAmount: {
+    type: Number,
+    required: true,
+  }
 });
 
 const Order = mongoose.model("orders", orderSchema);
