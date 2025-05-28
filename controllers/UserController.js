@@ -64,7 +64,8 @@ export function userLogin(req, res) {
             isBlocked: user.isBlocked,
             profilePic: user.profilePic,
           },
-          process.env.SECRETE
+          process.env.SECRETE,
+          { expiresIn: '1h' }
         );
         res.json({
           success: true,
