@@ -3,143 +3,198 @@ import Product from "../models/Product.js";
 import { isAdmin, isCustomer } from "./UserController.js";
 
 export async function createOrder(req, res) {
-  //CBC0001
-  // Take the lastest order id
   if (!isCustomer(req)) {
-    res.json({
+    return res.status(401).json({
       message: "Please login as customer to create orders",
     });
   }
+
   try {
+    // Generate new order ID
     const lastestOrder = await Order.find().sort({ date: -1 }).limit(1);
-    let orderId;
+    let orderId = lastestOrder.length === 0 
+      ? "CBC0001" 
+      : "CBC" + (parseInt(lastestOrder[0].orderId.replace("CBC", "")) + 1).toString().padStart(4, "0");
 
-    if (lastestOrder.length == 0) {
-      orderId = "CBC0001";
-    } else {
-      const currentOrderId = lastestOrder[0].orderId;
-      const numberString = currentOrderId.replace("CBC", "");
-      const number = parseInt(numberString);
-      const newNumber = (number + 1).toString().padStart(4, "0");
-      orderId = "CBC" + newNumber;
-    }
-    const newOrderData = req.body;
-
+    const orderData = req.body;
     const newProductArray = [];
+    let totalAmount = 0;
 
-    for (let i = 0; i < newOrderData.orderedItems.length; i++) {
+    // Validate and process each ordered item
+    for (const item of orderData.orderedItems) {
       const product = await Product.findOne({
-        productId: newOrderData.orderedItems[i].productId,
+        productId: item.productId
       });
 
-      if (product == null) {
-        res.json({
-          message:
-            "Product with id " +
-            newOrderData.orderedItems[i].productId +
-            " not found",
+      if (!product) {
+        return res.status(404).json({
+          message: `Product with id ${item.productId} not found`
         });
-        return;
       }
 
-      newProductArray[i] = {
+      // Check stock availability
+      if (product.stock < item.qty) {
+        return res.status(400).json({
+          message: `Insufficient stock for product ${product.productName}`
+        });
+      }
+
+      // Update product stock
+      await Product.updateOne(
+        { productId: item.productId },
+        { $inc: { stock: -item.qty, soldCount: item.qty } }
+      );
+
+      // Calculate item total and add to order items
+      const itemTotal = product.lastPrice * item.qty;
+      totalAmount += itemTotal;
+
+      newProductArray.push({
+        productId: item.productId,
         name: product.productName,
         price: product.lastPrice,
-        quantity: newOrderData.orderedItems[i].qty,
+        quantity: item.qty,
         image: product.images[0],
-      };
+        size: item.size || 'M'
+      });
     }
-    console.log(newProductArray);
-    newOrderData.orderedItems = newProductArray;
 
-    newOrderData.orderId = orderId;
-    newOrderData.email = req.user.email;
+    // Create the order
+    const order = new Order({
+      orderId,
+      email: req.user.email,
+      name: orderData.name,
+      phone: orderData.phone,
+      address: orderData.address,
+      orderedItems: newProductArray,
+      totalAmount,
+      paymentMethod: orderData.paymentMethod,
+      paymentStatus: orderData.paymentMethod === 'cod' ? 'pending' : 'completed',
+      status: 'Preparing'
+    });
 
-    const order = new Order(newOrderData);
+    const savedOrder = await order.save();
 
-    const saveOrder = await order.save();
-
-    res.json({
-      message: "Order is created",
-      order: saveOrder
+    res.status(201).json({
+      message: "Order created successfully",
+      order: savedOrder
     });
   } catch (error) {
+    console.error('Order creation error:', error);
     res.status(500).json({
-      message: error.message,
+      message: error.message || "Error creating order"
     });
   }
 }
 
 export async function getOrders(req, res) {
   try {
-    if(isCustomer(req)){
-      const orders = await Order.find({ email: req.user.email });
-      res.json(orders);
-      return
-    }else if(isAdmin(req)){
-      const orders = await Order.find({})
-      res.json(orders);
-      return
-    }else{
-      res.json({
-        message:"Please Login ro view the orders"
-      })
-    }
+    if (isCustomer(req)) {
+      const orders = await Order.find({ email: req.user.email }).sort({ date: -1 });
+      return res.json(orders);
+    } 
     
+    if (isAdmin(req)) {
+      const orders = await Order.find({}).sort({ date: -1 });
+      return res.json(orders);
+    }
+
+    return res.status(401).json({
+      message: "Please login to view orders"
+    });
   } catch (error) {
     res.status(500).json({
-      message: error.message,
+      message: error.message
     });
   }
 }
 
 export async function getQuote(req, res) {
   try {
-    const newOrderData = req.body;
-    const newProductArray = [];
+    if (!isCustomer(req)) {
+      return res.status(401).json({
+        message: "Please login to get quote"
+      });
+    }
+
+    const orderData = req.body;
+    const orderedItems = [];
     let total = 0;
     let labelTotal = 0;
 
-    for (let i = 0; i < newOrderData.orderedItems.length; i++) {
+    // Calculate quote for each item
+    for (const item of orderData.orderedItems) {
       const product = await Product.findOne({
-        productId: newOrderData.orderedItems[i].productId,
+        productId: item.productId
       });
 
-      if (product == null) {
-        res.json({
-          message:
-            "Product with id " +
-            newOrderData.orderedItems[i].productId +
-            " not found",
+      if (!product) {
+        return res.status(404).json({
+          message: `Product with id ${item.productId} not found`
         });
-        return; // Ensure no further response attempts
       }
 
-      labelTotal += product.price * newOrderData.orderedItems[i].qty;
-      total += product.lastPrice * newOrderData.orderedItems[i].qty;
+      // Check stock availability
+      if (product.stock < item.qty) {
+        return res.status(400).json({
+          message: `Insufficient stock for product ${product.productName}`
+        });
+      }
 
-      newProductArray[i] = {
+      labelTotal += product.price * item.qty;
+      total += product.lastPrice * item.qty;
+
+      orderedItems.push({
+        productId: item.productId,
         name: product.productName,
         price: product.lastPrice,
         labelPrice: product.price,
-        quantity: newOrderData.orderedItems[i].qty,
-        image: product.images[0],
-      };
+        quantity: item.qty,
+        image: product.images[0]
+      });
     }
 
-    console.log(newProductArray);
-    newOrderData.orderedItems = newProductArray;
-    newOrderData.total = total;
-
-    // Send a single response
     res.json({
-      orderedItems: newProductArray,
-      total: total,
-      labelTotal: labelTotal,
+      orderedItems,
+      total,
+      labelTotal,
+      savings: labelTotal - total
     });
   } catch (error) {
     res.status(500).json({
-      message: error.message,
+      message: error.message
+    });
+  }
+}
+
+// Update order status (admin only)
+export async function updateOrderStatus(req, res) {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(401).json({
+        message: "Only administrators can update order status"
+      });
+    }
+
+    const { orderId, status } = req.body;
+    const order = await Order.findOne({ orderId });
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found"
+      });
+    }
+
+    order.status = status;
+    await order.save();
+
+    res.json({
+      message: "Order status updated successfully",
+      order
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
     });
   }
 }
